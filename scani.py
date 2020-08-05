@@ -2,21 +2,23 @@ from scapy.all import *
 import argparse
 from random import randint
 
-PORTS_DICT = { 'FTP': 20,'FTP': 21, 'SSH': 22, 'Telnet': 23, 'SMTP': 25, 'HTTP': 80, 'POP3': 110, 'HTTPS': 443 }
 
 RAND_IP = str(randint(1,255)) + '.' + str(randint(1,255)) + '.' + str(randint(1,255)) + '.' + str(randint(1,255))
 
+
 def arp_scan():
-	pkt = Ether(dst = 'ff:ff:ff:ff:ff:ff')/ARP(pdst = get_if_addr(conf.iface) + '/24')
-	res = srp(pkt, timeout = 2, verbose = False)[0]
-	print('\n[*] IPs found:')
+	print('\n[*] Starting ARP scan...')
+	pkt = Ether(dst='ff:ff:ff:ff:ff:ff')/ARP(pdst=get_if_addr(conf.iface) + '/24')
+	res = srp(pkt, timeout = 0.2, verbose = False)[0]
+	print('[*] IPs found:')
 	ip_list = []
 	for x in res:
 		print('[+] ' + x[1].psrc)
-		ip_list += x[1].psrc
+		ip_list.append(x[1].psrc)
 	else:
 		print()
 	return ip_list
+
 
 def addr_resolve(addrs):
 	# some regex magic to get ipv4
@@ -25,6 +27,24 @@ def addr_resolve(addrs):
 	return ip_list
 	
 
+def port_scan(ip_list, ports, src):
+	# iterate through ips and ports
+	print('[*] Starting port scan...\n[*] Open Ports:')
+	for ip in ip_list:
+		for port in ports:
+			try:
+				pkt = IP(dst=str(ip))/TCP(dport=int(port))
+				syn_resp = sr1(pkt, timeout=0.2, verbose=0)
+						
+				if syn_resp[TCP].flags == 'SA':
+					print('[+] ' + ip + ' : '+ str(port))
+
+				sr1(IP(dst=str(ip))/TCP(dport=syn_resp.sport, flags='R'), verbose=0, timeout=0.2)
+			except:
+				pass
+	print()
+
+
 def main():
 	ap = argparse.ArgumentParser(description = 'port scanner using scapy')
 	
@@ -32,7 +52,7 @@ def main():
 	ap.add_argument('--prts', '-p', help='ports to scan (comma separated)\nscans most common ports by default', default='0', metavar='PORTS')
 	ap.add_argument('--ttl', '-t', help='spoof ttl - enter value or leave empty for random', default=randint(1,128), metavar='TTL')
 	ap.add_argument('--src', '-s', help='spoof address - enter value or leave empty for random', default=RAND_IP, metavar='SOURCE_IP')
-	ap.add_argument('--full', '-f', help='full scan - all ips and ports in subnet', action='store_true')
+	ap.add_argument('--full', '-f', help='full network scan - all ips and ports in subnet', action='store_true')
 	
 	args = ap.parse_args()
 	
@@ -48,12 +68,17 @@ def main():
 	if args.full and args.addr != '0':
 		print('\n[-] Use either, not both\n')
 		return
+	elif args.full == False and args.addr == '0':
+		print('\n[-] Enter address or use -f for full network scan\n')
+		return
 
 	if args.full:
 		ip_list = arp_scan()
 
 	if args.addr != '0':
 		ip_list = addr_resolve(args.addr.split(','))
+
+	port_scan(ip_list, ports, src)
 
 
 
