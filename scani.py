@@ -4,11 +4,12 @@ from random import randint
 
 
 RAND_IP = str(randint(1,255)) + '.' + str(randint(1,255)) + '.' + str(randint(1,255)) + '.' + str(randint(1,255))
-
+GATEWAY_IP = '.'.join(get_if_addr(conf.iface).split('.')[:-1]+['1'])
+GATEWAY_MAC = getmacbyip(GATEWAY_IP)
 
 def arp_scan():
 	print('\n[*] Starting ARP scan...')
-	pkt = Ether(dst='ff:ff:ff:ff:ff:ff')/ARP(pdst=get_if_addr(conf.iface) + '/24')
+	pkt = Ether(dst='ff:ff:ff:ff:ff:ff', src=GATEWAY_MAC)/ARP(psrc=GATEWAY_IP, pdst=get_if_addr(conf.iface) + '/24')
 	res = srp(pkt, timeout = 0.2, verbose = False)[0]
 	print('[*] IPs found:')
 	ip_list = []
@@ -27,19 +28,19 @@ def addr_resolve(addrs):
 	return ip_list
 	
 
-def port_scan(ip_list, ports, src):
+def port_scan(ip_list, ports):
 	# iterate through ips and ports
 	print('[*] Starting port scan...\n[*] Open Ports:')
 	for ip in ip_list:
 		for port in ports:
 			try:
-				pkt = IP(dst=str(ip))/TCP(dport=int(port))
+				pkt = IP(dst=str(ip), src=GATEWAY_IP)/TCP(dport=int(port))
 				syn_resp = sr1(pkt, timeout=0.2, verbose=0)
 						
 				if syn_resp[TCP].flags == 'SA':
 					print('[+] ' + ip + ' : '+ str(port))
 
-				sr1(IP(dst=str(ip))/TCP(dport=syn_resp.sport, flags='R'), verbose=0, timeout=0.2)
+				sr1(IP(dst=str(ip), src=src)/TCP(dport=syn_resp.sport, flags='R'), verbose=0, timeout=0.2)
 			except:
 				pass
 	print()
@@ -51,14 +52,11 @@ def main():
 	ap.add_argument('--addr', '-a', help='ipv4 addresses / ipv6 addresses / domain name (comma separated)', metavar='ADDRESSES', default='0')
 	ap.add_argument('--prts', '-p', help='ports to scan (comma separated)\nscans most common ports by default', default='0', metavar='PORTS')
 	ap.add_argument('--ttl', '-t', help='spoof ttl - enter value or leave empty for random', default=randint(1,128), metavar='TTL')
-	ap.add_argument('--src', '-s', help='spoof address - enter value or leave empty for random', default=RAND_IP, metavar='SOURCE_IP')
 	ap.add_argument('--full', '-f', help='full network scan - all ips and ports in subnet', action='store_true')
 	
 	args = ap.parse_args()
 	
 	ttl = args.ttl 
-
-	src = args.src
 
 	if args.prts == '0':
 		ports = [20, 21, 22, 23, 25, 80, 110, 443]
@@ -78,7 +76,7 @@ def main():
 	if args.addr != '0':
 		ip_list = addr_resolve(args.addr.split(','))
 
-	port_scan(ip_list, ports, src)
+	port_scan(ip_list, ports)
 
 
 
