@@ -10,7 +10,7 @@ I'm currently working on making this untraceable to the scanner's host.
 
 * ARP scan for /24 subnet
 * All open ports in an IP
-* Fake TTL
+* Fake TTL (I understand there is no logical reason to add this feature, but this is a part of something bigger I'm currently working towards)
 
 ## Concept of Working
 
